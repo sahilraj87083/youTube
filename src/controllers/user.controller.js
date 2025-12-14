@@ -223,17 +223,31 @@ const refreshAccessToken = asyncHandler( async (req, res) => {
             secure : true
         }
 
-        const {accessToken, refreshToken} = await generateAccessAndRefereshTokens(user._id) // if you want to refresh both access and refresh token
+        // const {accessToken, refreshToken} = await generateAccessAndRefereshTokens(user._id) // if you want to refresh both access and refresh token
+
+        // return res
+        // .status(200)
+        // .cookie("accessToken", accessToken, options)
+        // .cookie("refreshToken", refreshToken, options)
+        // .json(new ApiResponse(
+        //         200, 
+        //         {accessToken, refreshToken},
+        //         "Access token refreshed"
+        // ))
+
+
+        const accessToken = user.generateAccessToken() // here we are just refreshing the access token 
 
         return res
         .status(200)
         .cookie("accessToken", accessToken, options)
-        .cookie("refreshToken", refreshToken, options)
-        .json(new ApiResponse(
-                200, 
-                {accessToken, refreshToken},
+        .json(
+            new ApiResponse(
+                200,
+                { accessToken },
                 "Access token refreshed"
-        ))
+            )
+        );
 
 
 
