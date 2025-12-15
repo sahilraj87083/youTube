@@ -42,4 +42,24 @@ const uploadOnCloudinary = async (localFilePath) => {
     }
 }
 
-export {uploadOnCloudinary}
+const deleteFromCloudinary = async (assetCloudinaryUrl) => {
+    try {
+        if(!assetCloudinaryUrl){
+            return null
+        }
+
+        // Extract the public ID from the URL
+        // Example:
+        // https://res.cloudinary.com/demo/image/upload/v1234567/abcxyz.png
+        // public_id = "abcxyz"
+        const publicId = assetCloudinaryUrl.split("/").pop().split(".")[0];
+        const response = await cloudinary.uploader.destroy(publicId);
+        console.log('Asset deleted on Cloudinary')
+        return response;
+    } catch (error) {
+        console.log("Cloudinary delete error:", error);
+        return null;
+    }
+}
+
+export {uploadOnCloudinary, deleteFromCloudinary}
