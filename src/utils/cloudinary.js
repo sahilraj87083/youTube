@@ -42,18 +42,30 @@ const uploadOnCloudinary = async (localFilePath) => {
     }
 }
 
-const deleteFromCloudinary = async (assetCloudinaryUrl) => {
+const deleteFromCloudinary = async (asset) => {
     try {
-        if(!assetCloudinaryUrl){
-            return null
-        }
+        
+        if (!asset) return null;
 
+        let publicId;
+
+        // If it's a URL, extract public_id
         // Extract the public ID from the URL
         // Example:
         // https://res.cloudinary.com/demo/image/upload/v1234567/abcxyz.png
         // public_id = "abcxyz"
-        const publicId = assetCloudinaryUrl.split("/").pop().split(".")[0];
-        const response = await cloudinary.uploader.destroy(publicId);
+        if (asset.includes("/")) {
+            publicId = asset.split("/").pop().split(".")[0];
+        } 
+        // Else assume it's already a public_id
+        else {
+            publicId = asset;
+        }
+
+        const response = await cloudinary.uploader.destroy(publicId, {
+            resource_type: "auto"
+        });
+        
         console.log('Asset deleted on Cloudinary')
         return response;
     } catch (error) {
