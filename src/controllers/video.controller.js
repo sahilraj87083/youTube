@@ -292,75 +292,71 @@ const getVideoById = asyncHandler(async (req, res) => {
 
 
 const updateVideo = asyncHandler(async (req, res) => {
-    const { videoId } = req.params
-    const {title, description } = req.body
+    const { videoId } = req.params;
+    const { title, description } = req.body;
 
-    //TODO: update video details like title, description, thumbnail
-    if(!isValidObjectId(videoId)){
+    if (!isValidObjectId(videoId)) {
         throw new ApiError(400, "Invalid videoId");
     }
 
-    if(!(title && description)){
-        throw new ApiError(400, "title and description are required");
+    if (!title || !description) {
+        throw new ApiError(400, "Title and description are required");
     }
 
-    const video = await Video.findById(videoId)
+    const video = await Video.findById(videoId);
 
-    if(!video){
-        throw new ApiError(404, "No video found");
+    if (!video) {
+        throw new ApiError(404, "Video not found");
     }
 
-
-    if(req.user?._id.toString() !== video.owner.toString()){
-        throw new ApiError(
-            400,
-            "You can't edit this video as you are not the owner"
-        );
+    // ownership check
+    if (req.user._id.toString() !== video.owner.toString()) {
+        throw new ApiError(403, "You are not allowed to edit this video");
     }
 
-    const thumbnailLocalFilePath = req.file?.path
+    let updatedFields = {
+        title,
+        description
+    };
 
-    // delete the old thumbnail and update with new one
-    const thumbnailToDelete = video.thumbnail.public_id
-    
+    let oldThumbnailPublicId = null;
 
-    if(!thumbnailLocalFilePath){
-        throw new ApiError(400, "thumbnail is required");
+    // thumbnail update (optional)
+    if (req.file?.path) {
+        const thumbnail = await uploadOnCloudinary(req.file.path);
+
+        if (!thumbnail) {
+            throw new ApiError(500, "Thumbnail upload failed");
+        }
+
+        oldThumbnailPublicId = video.thumbnail?.public_id;
+
+        updatedFields.thumbnail = {
+            public_id: thumbnail.public_id,
+            url: thumbnail.url
+        };
     }
-
-    const thumbnail = await uploadOnCloudinary(thumbnailLocalFilePath)
-
 
     const updatedVideo = await Video.findByIdAndUpdate(
         videoId,
-        {
-            $set : {
-                title,
-                description,
-                thumbnail : {
-                    public_id: thumbnail.public_id,
-                    url: thumbnail.url
-                }
-            }
-        },
-        {
-            new : true
-        }
-    )
+        { $set: updatedFields },
+        { new: true }
+    );
 
     if (!updatedVideo) {
-        throw new ApiError(500, "Failed to update video please try again");
+        throw new ApiError(500, "Failed to update video");
     }
 
-
-    if(updatedVideo){
-        await deleteFromCloudinary(thumbnailToDelete)
+    // delete old thumbnail AFTER successful update
+    if (oldThumbnailPublicId) {
+        await deleteFromCloudinary(oldThumbnailPublicId);
     }
-    
-    return res
-        .status(200)
-        .json(new ApiResponse(200, updatedVideo, "Video updated successfully"));
-})
+
+    return res.status(200).json(
+        new ApiResponse(200, updatedVideo, "Video updated successfully")
+    );
+});
+
 
 
 export {
