@@ -1,4 +1,4 @@
-import mongoose, { isValidObjectId } from 'mongoose'
+import mongoose, { isValidObjectId, set } from 'mongoose'
 import Comment from '../models/comment.models.js'
 import {ApiError} from '../utils/ApiError.js'
 import {ApiResponse} from '../utils/ApiResponse.js'
@@ -137,7 +137,52 @@ const addComment = asyncHandler(async (req, res) => {
 })
 
 
+const updateComment = asyncHandler(async (req, res) => {
+    // TODO: update a comment
+    const {content} = req.body
+    const {commentId} = req.params
+
+    if(!content || typeof content !== "string" || !content.trim()){
+        throw new ApiError(400, 'Content is required')
+    }
+
+    if(!isValidObjectId(commentId)){
+        throw new ApiError(400, 'Invalid commentId')
+    }
+
+    const comment = await Comment.findById(commentId)
+
+    if(!comment){
+        throw new ApiError(404, "Comment not found");
+    }
+
+    if(comment.owner.toString() !== req.user?._id.toString()){
+        throw new ApiError(403, 'You are not authorized to update the comment')
+    }
+
+    const updatedComment = await Comment.findByIdAndUpdate(comment?._id , 
+        {
+            $set : {
+                content : content
+            }
+        },
+        {
+            new : true
+        }
+    )
+
+    if(!updatedComment){
+        throw new ApiError(500, 'Unable to update comment please try again later')
+    }
+
+    return res
+    .status(200)
+    .json(new ApiResponse(200, updatedComment, 'Comment updated Successfully'));
+})
+
+
 export {
     getVideoComments,
-    addComment
+    addComment,
+    updateComment
 }
