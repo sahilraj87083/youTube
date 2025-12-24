@@ -165,6 +165,107 @@ const getUserChannelSubscribers = asyncHandler(async (req, res) => {
 // controller to return channel list to which user has subscribed
 const getSubscribedChannels = asyncHandler(async (req, res) => {
     const { subscriberId } = req.params
+
+    if(!isValidObjectId(subscriberId)){
+        throw new ApiError(400, 'Invalid subscriberId');
+    }
+
+    const subscriber = await User.findById(subscriberId)
+    if (!subscriber) {
+        throw new ApiError(404, "Subscriber not found")
+    }
+
+
+    const subscribedChannels = await Subscription.aggregate([
+        // 1. Match subscriptions for this channel
+        {
+            $match : {
+                subscriber : new mongoose.Types.ObjectId(subscriberId)
+            }
+        },
+        // 2. Lookup channel user details
+        {
+            $lookup : {
+                from : 'users',
+                localField : 'channel',
+                foreignField : '_id',
+                as : 'subscribedChannel',
+                pipeline : [
+                    {
+                        $lookup : {
+                            from : 'videos',
+                            let : { channelId: "$_id" },
+                            pipeline : [
+                                {
+                                    $match : {
+                                        $expr : {
+                                            $and : [
+                                                { $eq : ['$owner' , '$$channelId'] },
+                                                { $eq: ["$isPublished", true] }
+                                            ]
+                                        }
+                                    }
+                                },
+                                {
+                                    $sort: { createdAt: -1 }
+                                },
+                                {
+                                    $limit: 1 // ONLY latest video
+                                },
+                                {
+                                    $project : {
+                                        "videoFile.url" : 1,
+                                        "thumbnail.url" : 1,
+                                        title : 1,
+                                        description : 1,
+                                        duration : 1,
+                                        views : 1,
+                                        likesCount : 1,
+                                        commentsCount : 1,
+                                        createdAt: 1
+                                    }
+                                }
+                            ],
+                            as : 'latestVideo'
+                        }
+                    },
+                    {
+                        $addFields: {
+                            latestVideo: { $first: "$latestVideo" }
+                        }
+                    },
+                    {
+                        $project: {
+                            username: 1,
+                            fullName: 1,
+                            "avatar.url": 1,
+                            latestVideo: 1
+                        }
+                    }
+                ]
+            }
+        },
+        { 
+            $unwind: "$subscribedChannel" 
+        },
+        {
+            $project: {
+                _id: 0,
+                subscribedChannel: 1
+            }
+        }
+
+    ])
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                subscribedChannels,
+                "subscribed channels fetched successfully"
+            )
+        );
 })
 
 export {
