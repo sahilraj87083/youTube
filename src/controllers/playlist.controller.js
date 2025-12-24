@@ -88,6 +88,56 @@ const updatePlaylist = asyncHandler(async (req, res) => {
     const {playlistId} = req.params
     const {name, description} = req.body
     //TODO: update playlist
+    if( !name ||
+        !description ||
+        typeof name !== "string" ||
+        typeof description !== "string" ||
+        !name.trim() ||
+        !description.trim()
+    ){
+        throw new ApiError(400, 'Name and Description both are required')
+    }
+
+    if(!isValidObjectId(playlistId)){
+        throw new ApiError(400, "Invalid PlaylistId");
+    }
+
+    const playlist = await Playlist.findById(playlistId);
+    if(!playlist){
+        throw new ApiError(404, 'Playlist not found')
+    }
+
+    if(playlist.owner.toString() !== req.user?._id.toString()){
+        throw new ApiError(403, 'You are not authorized to update this playlist')
+    }
+
+    const updatedPlaylist = await Playlist.findByIdAndUpdate(
+        playlistId,
+        {
+            $set : {
+                name : name,
+                description : description
+            }
+        },
+        {
+            new : true
+        }
+    )
+
+    if(!updatedPlaylist){
+        throw new ApiError(500, 'Error while updating the playlist')
+    }
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                updatedPlaylist,
+                "playlist updated successfully"
+            )
+        );
+
 })
 
 export {
