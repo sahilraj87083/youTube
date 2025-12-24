@@ -1,5 +1,5 @@
 import mongoose, {isValidObjectId} from "mongoose"
-import {Playlist} from "../models/playlist.model.js"
+import {Playlist} from "../models/playlist.models.js"
 import {ApiError} from "../utils/ApiError.js"
 import {ApiResponse} from "../utils/ApiResponse.js"
 import {asyncHandler} from "../utils/asyncHandler.js"
@@ -7,8 +7,31 @@ import {asyncHandler} from "../utils/asyncHandler.js"
 
 const createPlaylist = asyncHandler(async (req, res) => {
     const {name, description} = req.body
-
     //TODO: create playlist
+    if( !name ||
+        !description ||
+        typeof name !== "string" ||
+        typeof description !== "string" ||
+        !name.trim() ||
+        !description.trim()
+    ){
+        throw new ApiError(400, 'Name and Description both are required')
+    }
+
+    const playlist = await Playlist.create({
+        name : name,
+        description : description,
+        owner : req.user?._id
+    })
+
+    if(!playlist){
+        throw new ApiError(500, "failed to create playlist");
+    }
+
+    return res
+        .status(201)
+        .json(new ApiResponse(201, playlist, "playlist created successfully"));
+
 })
 
 const getUserPlaylists = asyncHandler(async (req, res) => {
