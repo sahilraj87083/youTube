@@ -119,6 +119,9 @@ const addVideoToPlaylist = asyncHandler(async (req, res) => {
         {
             $addToSet : {
                 videos : videoId
+            },
+            $inc : {
+                totalVideos : 1
             }
         },
         {
