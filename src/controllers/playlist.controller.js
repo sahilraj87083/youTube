@@ -88,6 +88,150 @@ const getUserPlaylists = asyncHandler(async (req, res) => {
 const getPlaylistById = asyncHandler(async (req, res) => {
     const {playlistId} = req.params
     //TODO: get playlist by id
+
+    const { page = 1, limit = 20 } = req.query
+
+    const pageNum = Math.max(parseInt(page, 10), 1)
+    const limitNum = Math.min(parseInt(limit, 10), 50)
+
+    if(!isValidObjectId(playlistId)){
+        throw new ApiError(400, "Invalid playlistId")
+    }
+    const skip = (pageNum - 1) * limit
+
+    const playlistVideos = await Playlist.aggregate([
+        // 1. Match playlist
+        {
+            $match : {
+                _id : new mongoose.Types.ObjectId(playlistId)
+            }
+        },
+        // 2. Lookup playlist owner
+        {
+            $lookup : {
+                from  : 'users',
+                localField : 'owner',
+                foreignField : '_id',
+                as : "owner",
+                pipeline : [
+                    {
+                        $project : {
+                            username: 1,
+                            fullName: 1,
+                            "avatar.url": 1
+                        }
+                    }
+                ]
+            }
+        },
+        // 3. Flatten owner array
+        {
+            $addFields : {
+                owner : { 
+                    $first: "$owner" 
+                }
+            }
+        },
+        // 4. Lookup videos in playlist (paginated)
+        {
+            $lookup : {
+                from : 'videos',
+                let : {
+                    videoIds : '$videos'
+                },
+                pipeline : [
+                    {
+                        $match : {
+                            $expr : {$in : ['$_id', '$$videoIds']},
+                            isPublished : true
+                        }
+                    },
+                    {
+                        $addFields : {
+                            sortIndex: { $indexOfArray: ['$$videoIds', '$_id'] }
+                        }
+                    },
+                    {
+                        $sort: { sortIndex: 1 }
+                    },
+                    { 
+                        $skip: skip 
+                    },
+                    {
+                        $limit: parseInt(limitNum)
+                    },
+                    // 4.1 lookup for video owner
+                    {
+                        $lookup : {
+                            from : 'users',
+                            localField : 'owner',
+                            foreignField : '_id',
+                            as : 'owner',
+                            pipeline : [
+                                {
+                                    $project: {
+                                        username: 1,
+                                        "avatar.url": 1
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    // 4.2 Flatten video owner
+                    {
+                        $addFields : {
+                            owner : {
+                                $first : '$owner'
+                            }
+                        }
+                    },
+                    // 4.3 Shape video response
+                    {
+                        $project : {
+                            title: 1,
+                            description: 1,
+                            duration: 1,
+                            views: 1,
+                            likesCount: 1,
+                            commentsCount: 1,
+                            "thumbnail.url": 1,
+                            "videoFile.url": 1,
+                            createdAt: 1,
+                            owner: 1
+                        }
+                    }
+                ],
+                as : 'videos'
+            }
+        },
+        
+        //56. final shape
+        {
+            $project : {
+                name : 1,
+                description : 1,
+                owner : 1,
+                videos : 1,
+                totalVideos: 1,
+                totalViews : 1,
+                createdAt: 1,
+                updatedAt: 1
+            }
+        }
+    ])
+
+
+    if (!playlistVideos.length) {
+        throw new ApiError(404, "Playlist not found")
+    }
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            playlistVideos[0],
+            "Playlist fetched successfully"
+        )
+    )
 })
 
 const addVideoToPlaylist = asyncHandler(async (req, res) => {
