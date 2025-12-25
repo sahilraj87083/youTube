@@ -22,6 +22,11 @@ const playlistSchema = new mongoose.Schema({
     totalVideos : {
         type : Number,
         default : 0
+    },
+    visibility: {
+        type: String,
+        enum: ["public", "private", "unlisted"],
+        default: "public"
     }
 }, {timestamps : true})
 
